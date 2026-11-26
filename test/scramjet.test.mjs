@@ -78,6 +78,8 @@ test("Scramjet runs on an isolated authenticated origin without Jnet API routes"
   const shell = await fetch(`${proxyUrl}/`, { headers: { cookie } });
   assert.equal(shell.status, 200);
   assert.match(shell.headers.get("content-security-policy"), /frame-src 'self'/);
+  assert.match(shell.headers.get("content-security-policy"), /connect-src 'self' data: wss?:\/\/127\.0\.0\.1:/);
+  assert.doesNotMatch(shell.headers.get("content-security-policy"), /connect-src[^;]*https?:/);
   assert.match(await shell.text(), /Scramjet Browser/);
   assert.equal((await fetch(`${proxyUrl}/session`, { headers: { cookie } })).status, 200);
   assert.equal((await fetch(`${proxyUrl}/api/status`, { headers: { cookie } })).status, 404);

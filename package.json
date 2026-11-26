@@ -8,7 +8,8 @@
   },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test"
+    "test": "node --test",
+    "check:shipping": "node scripts/check-hideout-shipping.mjs"
   },
   "dependencies": {
     "@mercuryworkshop/libcurl-transport": "2.0.6",

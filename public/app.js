@@ -23,12 +23,37 @@ let chatData = { users: [], conversations: [], messages: [], selected: "" };
 let toastTimer;
 let authError = "";
 let moduleStatusStream;
-let darkMode = localStorage.getItem("jnet-theme") === "dark";
+let userPreviewMode = false;
+const storedTheme = localStorage.getItem("jnet-theme");
+let darkMode = storedTheme ? storedTheme === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
 document.documentElement.dataset.theme = darkMode ? "dark" : "light";
+
+function updateThemeMetadata() {
+  const themeColor = document.querySelector('meta[name="theme-color"]');
+  if (themeColor) themeColor.content = darkMode ? "#201a2b" : "#f6f1ff";
+}
+
+updateThemeMetadata();
+
+window.addEventListener("storage", (event) => {
+  if (event.key !== "jnet-theme" || !["light", "dark"].includes(event.newValue)) return;
+  darkMode = event.newValue === "dark";
+  document.documentElement.dataset.theme = event.newValue;
+  updateThemeMetadata();
+  const toggle = app.querySelector("#theme-toggle");
+  if (toggle) {
+    toggle.setAttribute("aria-label", `Switch to ${darkMode ? "light" : "dark"} theme`);
+    toggle.title = `Switch to ${darkMode ? "light" : "dark"} theme`;
+    toggle.querySelector("span").textContent = `${darkMode ? "Light" : "Dark"} mode`;
+  }
+});
 
 const icons = {
   overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>',
   apps: '<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/>',
+  browser: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+  scramjet: '<path d="m13 2-3 9h7L9 22l2-9H5l8-11Z"/>',
+  chat: '<path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H6l-3 2v-6a7.5 7.5 0 1 1 17-3.5Z"/><path d="M8 11h.01M12 11h.01M16 11h.01"/>',
   modules: '<path d="M12 3v3m0 12v3M3 12h3m12 0h3"/><circle cx="12" cy="12" r="6"/><path d="m10 10 4 2-4 2z"/>',
   users: '<path d="M16 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/><path d="M20 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
   domains: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
@@ -46,8 +71,60 @@ function icon(name) {
   return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${icons[name] || icons.apps}</svg>`;
 }
 
+function quickSwitcherShortcut() {
+  const platform = navigator.userAgentData?.platform || navigator.platform || "";
+  return /mac/i.test(platform) ? "⌘ K" : "Ctrl K";
+}
+
+function appIconName(id) {
+  return ({
+    browser: "browser",
+    "wisp-browser": "scramjet",
+    chat: "chat",
+    storage: "storage",
+    connect: "connect",
+  })[id] || "apps";
+}
+
+function quickSwitcherEntries() {
+  const pages = [
+    { id: "overview", label: "Overview", detail: "Your Jnet dashboard", permission: "apps:view" },
+    { id: "launch", label: "Launch apps", detail: "Browse your available apps", permission: "apps:view" },
+    { id: "users", label: "Users", detail: "Accounts and permissions", permission: "users:manage" },
+    { id: "apps", label: "App settings", detail: "Choose which apps are available", permission: "apps:manage" },
+    { id: "modules", label: "Modules", detail: "Manage background services", permission: "modules:manage" },
+    { id: "domains", label: "Domains", detail: "Manage Jnet domains", permission: "domains:manage" },
+    { id: "hosting", label: "Sites", detail: "Manage hosted websites", permission: "hosting:manage" },
+    { id: "announcements", label: "Announcements", detail: "Update the homepage banner", permission: "announcements:manage" },
+    { id: "settings", label: "Settings", detail: "Server and account settings", permission: "*" },
+  ]
+    .filter((page) => can(page.permission))
+    .map((page) => ({ ...page, kind: "page" }));
+  const apps = state.apps
+    .filter((item) => item.enabled)
+    .filter((item) => !userPreviewMode || item.public)
+    .filter((item) => item.id !== "chat" || can("chat:use"))
+    .filter((item) => item.id !== "storage" || can("storage:use"))
+    .filter((item) => item.id !== "connect" || can("connect:use"))
+    .map((item) => ({ id: item.id, label: item.name, detail: item.description, kind: "app" }));
+  return [...pages, ...apps];
+}
+
+function quickSwitcherDialog() {
+  const entries = quickSwitcherEntries();
+  return `<dialog class="quick-switcher" id="quick-switcher" aria-label="Quick switcher">
+    <div class="quick-switcher-head"><span class="quick-search-mark">${icon("apps")}</span><input id="quick-switcher-input" type="search" placeholder="Jump to a page or app…" aria-label="Search pages and apps" autocomplete="off"><kbd>ESC</kbd><button class="quick-switcher-close" type="button" data-close-quick-switcher aria-label="Close quick switcher">×</button></div>
+    <div class="quick-switcher-list" role="listbox" aria-label="Pages and apps">${entries.map((entry) => `<button class="quick-switcher-item" role="option" data-quick-kind="${entry.kind}" data-quick-id="${escapeHtml(entry.id)}" data-search="${escapeHtml(`${entry.label} ${entry.detail}`.toLowerCase())}"><span class="quick-item-icon">${icon(entry.kind === "app" ? appIconName(entry.id) : entry.id === "settings" ? "settings" : entry.id === "users" ? "users" : entry.id === "modules" ? "modules" : entry.id === "domains" || entry.id === "hosting" ? "domains" : entry.id === "announcements" ? "announcement" : "overview")}</span><span class="quick-item-copy"><strong>${escapeHtml(entry.label)}</strong><small>${escapeHtml(entry.detail)}</small></span><span class="quick-item-kind">${entry.kind === "app" ? "APP" : "PAGE"}</span></button>`).join("")}<p class="quick-switcher-empty" hidden>No matching pages or apps.</p></div>
+    <footer><span><kbd>↑</kbd><kbd>↓</kbd> to navigate</span><span><kbd>↵</kbd> to open</span></footer>
+  </dialog>`;
+}
+
 function can(permission) {
-  return Boolean(state?.permissions?.includes("*") || state?.permissions?.includes(permission));
+  const normalRole = usersData.roles.find((role) => role.id === "normal");
+  const permissions = userPreviewMode
+    ? normalRole?.permissions || ["apps:view", "chat:use", "connect:use", "domains:view", "storage:use"]
+    : state?.permissions || [];
+  return Boolean(permissions.includes("*") || permissions.includes(permission));
 }
 
 function configuredChatUrl() {
@@ -90,6 +167,7 @@ async function request(url, options = {}) {
 }
 
 function renderLogin(error = authError) {
+  userPreviewMode = false;
   document.body.classList.remove("standalone-browser");
   destroyBrowserApp();
   document.title = "Jnet — Sign in";
@@ -257,17 +335,29 @@ function syncAnnouncementStyle() {
 }
 
 function overviewPage() {
+  if (userPreviewMode) {
+    return `
+      <div class="workspace-hero">
+        <div><p class="eyebrow">YOUR WORKSPACE</p><h1>Good to see you.</h1><p>Everything your administrator shared with you, in one place.</p></div>
+        <button class="button button-primary hero-action" data-page="launch">${icon("apps")} Explore apps</button>
+      </div>
+      ${announcementBanner()}
+      <div class="section-heading"><div><h2>Made for you</h2><p>Apps shared with your account</p></div><span class="section-count">${state.apps.filter((item) => item.enabled && item.public).length} available</span></div>
+      ${appsGrid()}`;
+  }
   return `
-    <div class="page-heading"><div><h1>Overview</h1><p>Your Jnet workspace, at a glance.</p></div></div>
-    ${announcementBanner()}
-    <div class="grid grid-overview">
-      <section class="card"><div class="metric-label">Jnet admin</div><div class="metric-value">Online</div><div class="metric-foot">Listening on port ${state.serverPort}</div></section>
-      <section class="card"><div class="metric-label">Your access</div><div class="metric-value">${escapeHtml(state.role?.name || "Account")}</div><div class="metric-foot">${escapeHtml(state.user.username)}</div></section>
-      <section class="card"><div class="metric-label">Available apps</div><div class="metric-value">${state.apps.filter((item) => item.enabled).length}</div><div class="metric-foot">Apps you can launch</div></section>
+    <div class="workspace-hero">
+      <div><p class="eyebrow">JNET WORKSPACE</p><h1>Your network, in one place.</h1><p>Launch tools, manage services, and keep your workspace in sync.</p></div>
+      <button class="button button-primary hero-action" data-page="launch">${icon("apps")} Explore apps</button>
     </div>
-    <p class="section-label">Your apps</p>
-    ${appsGrid()}
-    ${can("modules:manage") ? `<p class="section-label">Managed modules</p>${moduleCard()}${chatBackendCard()}` : ""}`;
+    ${announcementBanner()}
+    <div class="workspace-stats">
+      <section class="workspace-stat"><span class="stat-indicator is-online"></span><div><span class="stat-label">Jnet server</span><strong>Online</strong><small>Listening on :${state.serverPort}</small></div></section>
+      <section class="workspace-stat"><span class="stat-icon">${icon("users")}</span><div><span class="stat-label">Signed in as</span><strong>${escapeHtml(state.user.username)}</strong><small>${escapeHtml(state.role?.name || "Account")} access</small></div></section>
+      <section class="workspace-stat"><span class="stat-icon">${icon("apps")}</span><div><span class="stat-label">Your workspace</span><strong>${state.apps.filter((item) => item.enabled).length} apps</strong><small>Ready when you are</small></div></section>
+    </div>
+    <div class="section-heading"><div><h2>Pick up where you left off</h2><p>Your apps open in their own tab.</p></div><button class="link-button section-link" data-page="launch">All apps <span aria-hidden="true">→</span></button></div>
+    ${appsGrid()}`;
 }
 
 function modulesPage() {
@@ -282,11 +372,21 @@ function modulesPage() {
 }
 
 function appsGrid() {
-  const apps = state.apps.filter((item) => item.enabled);
+  const normalPermissions = userPreviewMode
+    ? usersData.roles.find((role) => role.id === "normal")?.permissions || ["apps:view", "chat:use", "connect:use", "domains:view", "storage:use"]
+    : [];
+  const apps = state.apps.filter((item) =>
+    item.enabled &&
+    (!userPreviewMode || (
+      item.public &&
+      (item.id !== "chat" || normalPermissions.includes("*") || normalPermissions.includes("chat:use")) &&
+      (item.id !== "storage" || normalPermissions.includes("*") || normalPermissions.includes("storage:use")) &&
+      (item.id !== "connect" || normalPermissions.includes("*") || normalPermissions.includes("connect:use"))
+    )));
   if (!apps.length) return '<div class="empty-state">No apps are available for this account.</div>';
   return `<div class="app-grid">${apps.map((item) => `
-    <button class="app-tile" data-launch-app="${escapeHtml(item.id)}">
-      <span class="app-tile-icon">${icon(item.id === "browser" || item.id === "wisp-browser" ? "domains" : item.id === "chat" ? "users" : item.id === "storage" || item.id === "connect" ? item.id : "apps")}</span>
+    <button class="app-tile" data-app="${escapeHtml(item.id)}" data-launch-app="${escapeHtml(item.id)}" aria-label="Open ${escapeHtml(item.name)} in a new tab">
+      <span class="app-tile-top"><span class="app-tile-icon">${icon(appIconName(item.id))}</span><span class="app-tile-open" aria-hidden="true">↗</span></span>
       <span class="app-tile-name">${escapeHtml(item.name)}</span><span class="app-tile-description">${escapeHtml(item.description)}</span>
     </button>`).join("")}</div>`;
 }
@@ -361,7 +461,7 @@ function usersPage() {
   const assignableRoles = usersData.roles.filter((role) =>
     can("*") || (!role.permissions.includes("*") && role.permissions.every((permission) => state.permissions.includes(permission))));
   const roleChoices = assignableRoles.map((role, index) => `<label class="role-choice"><input type="radio" name="roleId" value="${escapeHtml(role.id)}" ${index === 0 ? "checked" : ""}><span><strong>${escapeHtml(role.name)}</strong><small>${role.permissions.includes("*") ? "Full administrative access" : role.permissions.length ? `${role.permissions.length} permissions` : "No permissions"}</small></span></label>`).join("");
-  return `<div class="page-heading"><div><h1>Users</h1><p>Create accounts, assign access, and define permission levels.</p></div></div>
+  return `<div class="page-heading"><div><h1>Users</h1><p>Create accounts, assign access, and define permission levels.</p></div><button class="button button-tonal" type="button" data-preview-user-view>${icon("overview")} Preview Normal user</button></div>
     <section class="card settings-card"><h3>Create user</h3><form id="create-user-form" class="form-grid">
       <div class="field"><label>Username</label><input name="username" required minlength="3" maxlength="32" pattern="[A-Za-z0-9][A-Za-z0-9._\\-]{2,31}"></div>
       <div class="field"><label>Temporary password</label><input name="password" type="password" required minlength="8" maxlength="128" autocomplete="new-password"></div>
@@ -377,12 +477,19 @@ function appsAdminPage() {
   if (!can("apps:manage")) return noPermission();
   const chatDomainOptions = `<option value="">Not configured</option>${domainsData.domains.map((domain) => `<option value="${escapeHtml(domain.id)}" ${domain.id === state.chatSettings?.domainId ? "selected" : ""}>${escapeHtml(domainLabel(domain))}</option>`).join("")}`;
   return `<div class="page-heading"><div><h1>Apps</h1><p>Choose which apps are enabled and shown on the public homepage.</p></div></div>
-    <form id="apps-form" class="card app-settings">${state.apps.map((item) => `<div class="app-setting-row"><div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)}</p></div><label><input type="checkbox" name="${escapeHtml(item.id)}-enabled" ${item.enabled ? "checked" : ""}> Enabled</label><label><input type="checkbox" name="${escapeHtml(item.id)}-public" ${item.public ? "checked" : ""}> Public</label></div>`).join("")}
-      <details class="role-create"><summary>Chat app routing</summary><p class="help">Choose the Jnet virtual domain and frontend URL path. Configure the backend path in Modules.</p>
+    <form id="apps-form" class="card app-settings">
+      <div class="app-settings-heading"><div><h2>App access</h2><p>Give each app a clear audience. Private apps stay in your admin Launch page.</p></div><span class="settings-count">${state.apps.filter((item) => item.enabled).length} enabled</span></div>
+      ${state.apps.map((item) => `<div class="app-setting-row" data-app="${escapeHtml(item.id)}"><div class="app-setting-identity"><span class="app-setting-icon">${icon(item.id === "browser" || item.id === "wisp-browser" ? "domains" : item.id === "chat" ? "users" : item.id === "storage" || item.id === "connect" ? item.id : "apps")}</span><div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)}</p></div></div><label class="setting-switch"><span>Enabled</span><input type="checkbox" name="${escapeHtml(item.id)}-enabled" ${item.enabled ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label><label class="setting-switch"><span>Public</span><input type="checkbox" name="${escapeHtml(item.id)}-public" ${item.public ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></div>`).join("")}
+      <section class="app-route-settings">
+        <div><h3>Chat app location</h3><p class="help">Choose where users open Chat. Configure the backend path separately in Modules.</p></div>
+        <div class="app-route-fields">
         <div class="field"><label>Domain</label><select name="chat-domain">${chatDomainOptions}</select></div>
         <div class="field"><label>Chat app path</label><input name="chat-path" value="${escapeHtml(state.chatSettings?.path || "/chat")}" required maxlength="160"></div>
+        </div>
         ${configuredChatUrl() ? `<p class="help">Current app URL: <a href="${escapeHtml(configuredChatUrl())}">${escapeHtml(configuredChatUrl())}</a></p>` : ""}
-      </details><button class="button button-primary button-small" type="submit">Save app settings</button></form>`;
+      </section>
+      <div class="app-settings-footer"><p class="help">Changes apply to the next page load.</p><button class="button button-primary" type="submit">Save app settings</button></div>
+    </form>`;
 }
 
 function domainsPage() {
@@ -465,7 +572,7 @@ function noPermission() {
 
 function navButton(page, label, iconName, allowed = true) {
   if (!allowed) return "";
-  return `<button class="nav-item ${currentPage === page ? "active" : ""}" data-page="${page}"><span class="nav-icon">${icon(iconName)}</span><span class="nav-text">${label}</span></button>`;
+  return `<button class="nav-item ${currentPage === page ? "active" : ""}" data-page="${page}" aria-label="${label}" title="${label}" ${currentPage === page ? 'aria-current="page"' : ""}><span class="nav-icon">${icon(iconName)}</span><span class="nav-text">${label}</span></button>`;
 }
 
 function render() {
@@ -519,30 +626,87 @@ function render() {
     <div class="layout">
       <aside class="sidebar">
         <div class="sidebar-brand"><div class="brand-mark" aria-hidden="true">JN</div><div class="brand-copy"><div class="brand-name">Jnet</div><div class="brand-caption">Jxo Network</div></div></div>
-        <div class="nav-label">Workspace</div>
         <nav class="nav-list" aria-label="Main navigation">
-          ${navButton("overview", "Overview", "overview")}
-          ${navButton("launch", "Launch", "apps", true)}
-          ${navButton("modules", "Modules", "modules", can("modules:manage"))}
-          ${navButton("users", "Users", "users", can("users:manage"))}
-          ${navButton("apps", "Apps", "apps", can("apps:manage"))}
-          ${navButton("domains", "Domains", "domains", can("domains:manage"))}
-          ${navButton("hosting", "Sites", "hosting", can("hosting:manage"))}
-          ${navButton("announcements", "Announcements", "announcement", can("announcements:manage"))}
-          ${navButton("settings", "Settings", "settings", can("*"))}
+          <div class="nav-group"><div class="nav-label">Workspace</div>${navButton("overview", "Overview", "overview")}${navButton("launch", "Apps", "apps", true)}</div>
+          ${can("users:manage") || can("apps:manage") || can("modules:manage") ? `<div class="nav-group"><div class="nav-label">Manage</div>${navButton("users", "Users", "users", can("users:manage"))}${navButton("apps", "App settings", "apps", can("apps:manage"))}${navButton("modules", "Modules", "modules", can("modules:manage"))}</div>` : ""}
+          ${can("domains:manage") || can("hosting:manage") || can("announcements:manage") || can("*") ? `<div class="nav-group"><div class="nav-label">Network</div>${navButton("domains", "Domains", "domains", can("domains:manage"))}${navButton("hosting", "Sites", "hosting", can("hosting:manage"))}${navButton("announcements", "Announcements", "announcement", can("announcements:manage"))}${navButton("settings", "Settings", "settings", can("*"))}</div>` : ""}
         </nav>
-        <div class="sidebar-bottom"><div class="server-mini"><span class="dot online"></span>Jnet server online</div></div>
+        <div class="sidebar-bottom"><div class="server-mini"><span class="dot online"></span><span>Jnet server online</span></div></div>
       </aside>
       <div class="main">
-        <header class="topbar"><div class="breadcrumbs">Jnet <span aria-hidden="true">/</span> <strong>${titles[currentPage]}</strong></div><div class="topbar-right"><span class="local-label">:${state.serverPort} · ${escapeHtml(state.user.username)}</span><button class="link-button theme-toggle" id="theme-toggle" aria-label="Switch to ${darkMode ? "light" : "dark"} theme" title="Switch theme">${icon("theme")}<span>${darkMode ? "Light" : "Dark"} mode</span></button><button class="link-button" id="logout">${icon("signout")}<span>Sign out</span></button></div></header>
-        <div class="content">${pages[currentPage]()}</div>
+        <header class="topbar"><div class="breadcrumbs">Jnet <span aria-hidden="true">/</span> <strong>${userPreviewMode ? "Normal user preview" : titles[currentPage]}</strong></div><div class="topbar-right"><button class="quick-search-button" type="button" data-open-quick-switcher aria-label="Quick switcher (${quickSwitcherShortcut()})" title="Quick switcher (${quickSwitcherShortcut()})"><span>Jump to…</span><kbd>${quickSwitcherShortcut()}</kbd></button><span class="local-label">${userPreviewMode ? "Preview mode" : escapeHtml(state.user.username)}</span>${userPreviewMode ? `<button class="button button-tonal preview-exit" type="button" data-exit-user-preview>Exit preview</button>` : ""}<button class="link-button theme-toggle" id="theme-toggle" aria-label="Switch to ${darkMode ? "light" : "dark"} theme" title="Switch theme">${icon("theme")}<span>${darkMode ? "Light" : "Dark"} mode</span></button><button class="link-button" id="logout">${icon("signout")}<span>Sign out</span></button></div></header>
+        <div class="content">${userPreviewMode ? `<aside class="user-preview-banner"><span class="preview-symbol">${icon("overview")}</span><div><strong>Previewing the Normal user experience</strong><p>This is a visual preview only. Your administrator permissions and session remain unchanged.</p></div><button class="button button-tonal" type="button" data-exit-user-preview>Return to Users</button></aside>` : ""}${pages[currentPage]()}</div>
       </div>
-    </div>`;
+    </div>${quickSwitcherDialog()}`;
   }
   app.querySelectorAll("[data-page]").forEach((button) => button.addEventListener("click", () => {
     currentPage = button.dataset.page;
     render();
   }));
+  app.querySelector("[data-open-quick-switcher]")?.addEventListener("click", () => {
+    const dialog = app.querySelector("#quick-switcher");
+    dialog?.showModal();
+    dialog?.querySelector("#quick-switcher-input")?.focus();
+  });
+  app.querySelector("#quick-switcher")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) event.currentTarget.close();
+  });
+  app.querySelector("#quick-switcher")?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    event.currentTarget.close();
+  });
+  app.querySelector("[data-close-quick-switcher]")?.addEventListener("click", () => {
+    app.querySelector("#quick-switcher")?.close();
+  });
+  app.querySelector("#quick-switcher-input")?.addEventListener("input", (event) => {
+    const query = event.currentTarget.value.trim().toLowerCase();
+    const items = [...app.querySelectorAll(".quick-switcher-item")];
+    let visibleCount = 0;
+    for (const item of items) {
+      const visible = item.dataset.search.includes(query);
+      item.hidden = !visible;
+      if (visible) visibleCount++;
+    }
+    const empty = app.querySelector(".quick-switcher-empty");
+    if (empty) empty.hidden = visibleCount > 0;
+  });
+  app.querySelectorAll(".quick-switcher-item").forEach((button) => button.addEventListener("click", () => {
+    const { quickKind, quickId } = button.dataset;
+    if (quickKind === "page") {
+      currentPage = quickId;
+      app.querySelector("#quick-switcher")?.close();
+      render();
+    } else {
+      app.querySelector("#quick-switcher")?.close();
+      if (quickId === "chat" && configuredChatUrl()) {
+        window.open(configuredChatUrl(), "_blank", "noopener,noreferrer");
+      } else if (quickId === "wisp-browser") {
+        const proxyUrl = new URL("/", window.location.href);
+        proxyUrl.port = String(state.scramjetPort);
+        proxyUrl.searchParams.set("theme", darkMode ? "dark" : "light");
+        window.open(proxyUrl.href, "_blank", "noopener,noreferrer");
+      } else {
+        window.open(`/app/${encodeURIComponent(quickId)}`, "_blank", "noopener,noreferrer");
+      }
+    }
+  }));
+  app.querySelector("#quick-switcher")?.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.currentTarget.close();
+      return;
+    }
+    if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+    const visibleItems = [...app.querySelectorAll(".quick-switcher-item:not([hidden])")];
+    const currentIndex = visibleItems.indexOf(document.activeElement);
+    const nextIndex = event.key === "ArrowDown"
+      ? (currentIndex + 1) % visibleItems.length
+      : (currentIndex <= 0 ? visibleItems.length - 1 : currentIndex - 1);
+    if (visibleItems.length) {
+      event.preventDefault();
+      visibleItems[nextIndex].focus();
+    }
+  });
   app.querySelectorAll("[data-launch-app]").forEach((button) => button.addEventListener("click", () => {
     if (button.dataset.launchApp === "chat" && configuredChatUrl()) {
       window.open(configuredChatUrl(), "_blank", "noopener,noreferrer");
@@ -551,6 +715,7 @@ function render() {
     if (button.dataset.launchApp === "wisp-browser") {
       const proxyUrl = new URL("/", window.location.href);
       proxyUrl.port = String(state.scramjetPort);
+      proxyUrl.searchParams.set("theme", darkMode ? "dark" : "light");
       window.open(proxyUrl.href, "_blank", "noopener,noreferrer");
       return;
     }
@@ -566,8 +731,19 @@ function render() {
     darkMode = !darkMode;
     localStorage.setItem("jnet-theme", darkMode ? "dark" : "light");
     document.documentElement.dataset.theme = darkMode ? "dark" : "light";
+    updateThemeMetadata();
     render();
   });
+  app.querySelectorAll("[data-preview-user-view]").forEach((button) => button.addEventListener("click", () => {
+    userPreviewMode = true;
+    currentPage = "overview";
+    render();
+  }));
+  app.querySelectorAll("[data-exit-user-preview]").forEach((button) => button.addEventListener("click", () => {
+    userPreviewMode = false;
+    currentPage = "users";
+    render();
+  }));
   app.querySelector("#module-settings-form")?.addEventListener("submit", saveSettings);
   app.querySelector("#server-settings-form")?.addEventListener("submit", saveServerSettings);
   app.querySelector("#scramjet-settings-form")?.addEventListener("submit", saveScramjetSettings);
@@ -717,6 +893,17 @@ async function loadConnect() {
   }
 }
 
+document.addEventListener("keydown", (event) => {
+  if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "k" || !state?.authenticated) return;
+  if (document.body.classList.contains("standalone-browser")) return;
+  event.preventDefault();
+  const dialog = app.querySelector("#quick-switcher");
+  if (!dialog?.open) {
+    dialog?.showModal();
+    dialog?.querySelector("#quick-switcher-input")?.focus();
+  }
+});
+
 async function refresh() {
   state = await request("/api/status");
   syncAnnouncementStyle();
@@ -744,6 +931,7 @@ async function refresh() {
     if (routedApp === "wisp-browser") {
       const proxyUrl = new URL("/", window.location.href);
       proxyUrl.port = String(state.scramjetPort);
+      proxyUrl.searchParams.set("theme", darkMode ? "dark" : "light");
       window.location.replace(proxyUrl.href);
       return false;
     }

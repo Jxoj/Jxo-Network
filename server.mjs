@@ -2643,7 +2643,7 @@ export async function createJNetServer({
         res.writeHead(200, {
           "Content-Type": "text/html; charset=utf-8",
           "Content-Length": body.length,
-          "Content-Security-Policy": `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self' ${websocketScheme}://${authority}; frame-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`,
+          "Content-Security-Policy": `default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data:; connect-src 'self' data: ${websocketScheme}://${authority}; frame-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'`,
           "X-Frame-Options": "DENY",
           "Service-Worker-Allowed": "/",
         });

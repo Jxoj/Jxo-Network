@@ -13,6 +13,14 @@ function escapeHtml(value) {
   })[character]);
 }
 
+function preferredTheme() {
+  const queryTheme = new URLSearchParams(window.location.search).get("theme");
+  const savedTheme = localStorage.getItem("jnet-theme");
+  if (queryTheme === "light" || queryTheme === "dark") return queryTheme;
+  if (savedTheme === "light" || savedTheme === "dark") return savedTheme;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
 function isPrivateHost(hostname) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
   if (
@@ -111,6 +119,19 @@ export function mountBrowserApp(root, {
   scramjetController = null,
 }) {
   const appOrigin = window.location.origin;
+  function applyTheme(theme, persist = false) {
+    document.documentElement.dataset.theme = theme;
+    if (persist) localStorage.setItem("jnet-theme", theme);
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.content = theme === "dark" ? "#201a2b" : "#f6f1ff";
+  }
+  applyTheme(preferredTheme());
+  const onThemeStorage = (event) => {
+    if (event.key === "jnet-theme" && (event.newValue === "light" || event.newValue === "dark")) {
+      applyTheme(event.newValue);
+    }
+  };
+  window.addEventListener("storage", onThemeStorage);
   const key = `jnet-browser:${encodeURIComponent(userId)}:${mode}`;
   const data = loadBrowserData(key, appOrigin);
   let statusMessage = "";
@@ -129,6 +150,12 @@ export function mountBrowserApp(root, {
     return tab?.history[tab.index] || "";
   }
 
+  function wispMessage() {
+    if (!scramjetController) return `Wisp module: ${wispStatus}. Scramjet is not connected.`;
+    if (wispStatus === "running") return "Page traffic is routed through Scramjet and Wisp.";
+    return `Scramjet is ready. Start Wisp in Jnet Modules to browse; it is currently ${wispStatus}.`;
+  }
+
   function save() {
     try {
       localStorage.setItem(key, JSON.stringify(data));
@@ -142,6 +169,7 @@ export function mountBrowserApp(root, {
       <div class="browser-brand"><span class="browser-brand-mark">${isWisp ? "SJ" : "B"}</span><span>${isWisp ? "Scramjet Browser" : "Browser"}</span></div>
       <div class="browser-tabs" id="browser-tabs" role="tablist" aria-label="Browser tabs"></div>
       <button class="browser-control" type="button" data-browser-action="new-tab" aria-label="New tab" title="New tab">+</button>
+      <button class="browser-control browser-theme-toggle" type="button" data-browser-action="toggle-theme" aria-label="Switch theme" title="Switch theme">◐</button>
     </header>
     <form class="browser-toolbar" id="browser-nav-form">
       <button class="browser-control" type="button" data-browser-action="back" aria-label="Back" title="Back">‹</button>
@@ -155,7 +183,7 @@ export function mountBrowserApp(root, {
     </form>
     <nav class="browser-bookmarks" id="browser-bookmarks" aria-label="Bookmarks"></nav>
     <main class="browser-stage" id="browser-stage">
-      <section class="browser-start" id="browser-start"><div class="browser-start-mark">${isWisp ? "SJ" : "B"}</div><h1>${isWisp ? "Scramjet Browser" : "Browser"}</h1><p>Enter a public website address or choose a bookmark.</p>${isWisp ? `<p class="wisp-status" data-wisp-status><span class="status-pip ${wispStatus === "running" ? "online" : ""}"></span>Wisp module ${escapeHtml(wispStatus)}</p>` : ""}</section>
+      <section class="browser-start" id="browser-start"><div class="browser-start-mark">${isWisp ? "SJ" : "B"}</div><h1>${isWisp ? "Scramjet Browser" : "Browser"}</h1><p>Enter a public website address or choose a bookmark.</p>${isWisp ? `<div class="wisp-start-status"><p class="wisp-status" data-wisp-status><span class="status-pip ${wispStatus === "running" ? "online" : ""}"></span><span class="wisp-status-label">Wisp module ${escapeHtml(wispStatus)}</span></p><p class="wisp-start-help">${wispStatus === "running" ? "Proxy transport is ready." : "Start Wisp in Jnet Modules before browsing."}</p></div>` : ""}</section>
     </main>
     <footer class="browser-footer"><span id="browser-status" ${isWisp ? 'data-wisp-status' : ""}></span><button type="button" data-browser-action="toggle-bookmarks">Hide bookmarks</button></footer>
   </section>`;
@@ -187,12 +215,15 @@ export function mountBrowserApp(root, {
     forward.disabled = current.index >= current.history.length - 1;
     externalButton.disabled = !url;
     bookmarkButton.classList.toggle("saved", Boolean(url && data.bookmarks.some((item) => item.url === url)));
+    const themeButton = root.querySelector(".browser-theme-toggle");
+    const isDark = document.documentElement.dataset.theme === "dark";
+    themeButton.textContent = isDark ? "☀" : "◐";
+    themeButton.setAttribute("aria-label", `Switch to ${isDark ? "light" : "dark"} theme`);
+    themeButton.title = `Switch to ${isDark ? "light" : "dark"} theme`;
     root.querySelector(".browser-footer > button").textContent = showBookmarks ? "Hide bookmarks" : "Show bookmarks";
     root.querySelector("#browser-status").textContent = statusMessage ||
       (isWisp
-        ? scramjetController
-          ? `Wisp module: ${wispStatus}. Page traffic is routed through Scramjet and Wisp.`
-          : `Wisp module: ${wispStatus}. Page traffic is direct; Scramjet is not connected.`
+        ? wispMessage()
         : "JavaScript is enabled in isolated frames.");
 
     for (const [tabId, frame] of frames) {
@@ -217,7 +248,9 @@ export function mountBrowserApp(root, {
           const status = root.querySelector("#browser-status");
           if (!destroyed && status && data.activeTabId === tab.id && currentUrl(tab) === frame.dataset.url) {
             statusMessage = scramjetController
-              ? "Page loaded through the Scramjet proxy."
+              ? wispStatus === "running"
+                ? "Page loaded through the Scramjet and Wisp proxy."
+                : `Wisp is ${wispStatus}. Start it in Jnet Modules to browse through Scramjet.`
               : "Page loaded in an isolated frame; some websites disallow embedding.";
             status.textContent = statusMessage;
           }
@@ -329,21 +362,27 @@ export function mountBrowserApp(root, {
       return;
     } else if (name === "toggle-bookmarks") {
       showBookmarks = !showBookmarks;
+    } else if (name === "toggle-theme") {
+      const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+      applyTheme(nextTheme, true);
     }
     save();
     render();
   }
 
   function updateWispStatus(status) {
+    if (wispStatus !== status) statusMessage = "";
     wispStatus = status;
     root.querySelectorAll("[data-wisp-status]").forEach((element) => {
       if (element.classList.contains("wisp-status")) {
         element.querySelector(".status-pip")?.classList.toggle("online", status === "running");
-        element.lastChild.textContent = `Wisp module ${status}`;
+        element.querySelector(".wisp-status-label").textContent = `Wisp module ${status}`;
+        const help = root.querySelector(".wisp-start-help");
+        if (help) help.textContent = status === "running"
+          ? "Proxy transport is ready."
+          : "Start Wisp in Jnet Modules before browsing.";
       } else {
-        element.textContent = scramjetController
-          ? `Wisp module: ${status}. Page traffic is routed through Scramjet and Wisp.`
-          : `Wisp module: ${status}. Page traffic is direct; Scramjet is not connected.`;
+        element.textContent = wispMessage();
       }
     });
   }
@@ -352,6 +391,7 @@ export function mountBrowserApp(root, {
     destroyed = true;
     root.onclick = null;
     root.onsubmit = null;
+    window.removeEventListener("storage", onThemeStorage);
     for (const frame of frames.values()) frame.remove();
     frames.clear();
     controllerFrames.clear();

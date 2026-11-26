@@ -51,6 +51,24 @@ test("setup key is filesystem-only, consumed during account setup, and API write
   assert.equal(browserModule.status, 200);
   assert.match(browserModule.headers.get("content-type"), /javascript/);
   assert.match(await browserModule.text(), /export function mountBrowserApp/);
+  const stylesheet = await (await fetch(`${baseUrl}/assets/app.css`)).text();
+  assert.match(stylesheet, /html\[data-theme="dark"\]/);
+  assert.match(stylesheet, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(stylesheet, /\.browser-page-frame\s*\{[^}]*border-radius:\s*22px/s);
+  assert.match(stylesheet, /\.quick-switcher\s*\{/);
+  assert.match(stylesheet, /@keyframes workspace-enter/);
+  assert.match(stylesheet, /\.app-tile::after\s*\{\s*display:\s*none;/);
+  assert.match(stylesheet, /\.auth-shell\s*\{/);
+  assert.match(stylesheet, /\.quick-search-button\s*\{/);
+  const appScript = await (await fetch(`${baseUrl}/assets/app.js`)).text();
+  assert.match(appScript, /Preview Normal user/);
+  assert.match(appScript, /Your administrator permissions and session remain unchanged/);
+  assert.match(appScript, /function quickSwitcherEntries\(\)/);
+  assert.match(appScript, /data-open-quick-switcher/);
+  const authScript = await (await fetch(`${baseUrl}/assets/auth.js`)).text();
+  assert.match(authScript, /auth-showcase/);
+  assert.match(authScript, /auth-form-panel/);
+  assert.match(authScript, /<section class="auth-form-panel">/);
   const adminShell = await fetch(`${baseUrl}/admin`);
   assert.doesNotMatch(adminShell.headers.get("content-security-policy"), /frame-src http: https:/);
 

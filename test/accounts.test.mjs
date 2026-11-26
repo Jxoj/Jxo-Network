@@ -1,9 +1,18 @@
 import assert from "node:assert/strict";
 import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { createJNetServer } from "../server.mjs";
+
+async function unusedPort() {
+  const server = createServer();
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return port;
+}
 
 function zipStored(files) {
   const crc32 = (buffer) => {
@@ -214,6 +223,13 @@ test("user roles are enforced and administrator reset writes a new one-time setu
     body: JSON.stringify({ accept: true }),
   });
   assert.equal(acceptRequest.status, 200);
+  const chatPort = await unusedPort();
+  const chatSettings = await adminWrite("/api/modules/chat-backend", "POST", {
+    action: "configure",
+    port: chatPort,
+    path: "/api/chat",
+  });
+  assert.equal(chatSettings.status, 200, await chatSettings.text());
   const storageUpload = await fetch(`${baseUrl}/api/storage/upload?path=docs%2Fhello.md`, {
     method: "POST",
     headers: {

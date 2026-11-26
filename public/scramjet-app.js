@@ -1,6 +1,17 @@
 import { mountBrowserApp } from "./browser.js";
 
 const root = document.querySelector("#app");
+const queryTheme = new URLSearchParams(location.search).get("theme");
+const savedTheme = localStorage.getItem("jnet-theme");
+const initialTheme = queryTheme === "light" || queryTheme === "dark"
+  ? queryTheme
+  : savedTheme === "light" || savedTheme === "dark"
+    ? savedTheme
+    : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+document.documentElement.dataset.theme = initialTheme;
+if (queryTheme === "light" || queryTheme === "dark") localStorage.setItem("jnet-theme", queryTheme);
+const themeColor = document.querySelector('meta[name="theme-color"]');
+if (themeColor) themeColor.content = initialTheme === "dark" ? "#201a2b" : "#f6f1ff";
 
 function showError(message) {
   root.replaceChildren();
