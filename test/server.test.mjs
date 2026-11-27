@@ -50,7 +50,9 @@ test("setup key is filesystem-only, consumed during account setup, and API write
   const browserModule = await fetch(`${baseUrl}/assets/browser.js`);
   assert.equal(browserModule.status, 200);
   assert.match(browserModule.headers.get("content-type"), /javascript/);
-  assert.match(await browserModule.text(), /export function mountBrowserApp/);
+  const browserSource = await browserModule.text();
+  assert.match(browserSource, /export function mountBrowserApp/);
+  assert.match(browserSource, /browserIcons/);
   const stylesheet = await (await fetch(`${baseUrl}/assets/app.css`)).text();
   assert.match(stylesheet, /html\[data-theme="dark"\]/);
   assert.match(stylesheet, /@media \(prefers-reduced-motion: reduce\)/);
@@ -65,6 +67,8 @@ test("setup key is filesystem-only, consumed during account setup, and API write
   assert.match(appScript, /Your administrator permissions and session remain unchanged/);
   assert.match(appScript, /function quickSwitcherEntries\(\)/);
   assert.match(appScript, /data-open-quick-switcher/);
+  assert.match(appScript, /function moduleAction\(/);
+  assert.match(appScript, /storage-item-icon/);
   const authScript = await (await fetch(`${baseUrl}/assets/auth.js`)).text();
   assert.match(authScript, /auth-showcase/);
   assert.match(authScript, /auth-form-panel/);

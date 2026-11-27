@@ -5,7 +5,7 @@ export function mountAuth({ root, state, icon, isAdminPortal, error, onSubmit, o
   const setupMode = !state?.initialized || (state?.setupAvailable && setupRequested);
   const canSignUp = Boolean(state?.selfSignup && !isAdminPortal);
   const mode = setupMode ? "setup" : canSignUp ? currentMode : "signin";
-  const appIcons = { browser: "domains", chat: "users" };
+  const appIcons = { browser: "browser", "wisp-browser": "scramjet", chat: "chat", storage: "storage", connect: "connect" };
   const publicApps = canSignUp && state.apps?.length
     ? `<div class="public-apps"><strong>Available apps</strong><div>${state.apps.map((app) => `<span>${icon(appIcons[app.id] || "apps")} ${escapeHtml(app.name)}</span>`).join("")}</div></div>`
     : "";

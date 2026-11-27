@@ -65,6 +65,22 @@ const icons = {
   theme: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>',
   storage: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 10h18"/>',
   connect: '<circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="m9 11 6-4m-6 6 6 4"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/><path d="M3 10h18"/>',
+  file: '<path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z"/><path d="M13 3v7h7M8 15h8m-8 3h8"/>',
+  code: '<path d="m8 8-4 4 4 4m8-8 4 4-4 4m-3-10-2 12"/>',
+  upload: '<path d="M12 16V4m-4 4 4-4 4 4"/><path d="M4 16v4h16v-4"/>',
+  download: '<path d="M12 4v12m-4-4 4 4 4-4"/><path d="M4 16v4h16v-4"/>',
+  save: '<path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8M7 3v5h8"/>',
+  plus: '<path d="M12 5v14m-7-7h14"/>',
+  trash: '<path d="M3 6h18m-2 0-.9 14H5.9L5 6m4 0V4h6v2m-5 4v6m4-6v6"/>',
+  refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+  external: '<path d="M14 4h6v6m-11 5L20 4"/><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/>',
+  lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 5v2"/>',
+  pin: '<path d="m16 3 5 5-4 1-4 4 1 4-2 2-3-6-6-3 2-2 4 1 4-4 1-4Z"/>',
+  power: '<path d="M12 2v10"/><path d="M18.4 5.6a8 8 0 1 1-12.8 0"/>',
+  stop: '<rect x="5" y="5" width="14" height="14" rx="2"/>',
+  sliders: '<path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3"/><path d="M2 14h4m4-6h4m4 8h4"/>',
 };
 
 function icon(name) {
@@ -84,6 +100,16 @@ function appIconName(id) {
     storage: "storage",
     connect: "connect",
   })[id] || "apps";
+}
+
+function moduleAction(action, label, { moduleId = "", primary = false, confirm = "" } = {}) {
+  const actionIcon = action === "download" ? "download"
+    : action === "restart" ? "refresh"
+      : action === "disable" ? "power"
+        : action === "stop" ? "stop"
+          : action === "start" ? "plus"
+            : "plus";
+  return `<button class="button ${primary ? "button-primary" : ""} button-small" data-action="${action}" ${moduleId ? `data-module="${escapeHtml(moduleId)}"` : ""} ${confirm ? `data-confirm="${escapeHtml(confirm)}"` : ""}>${icon(actionIcon)}${label}</button>`;
 }
 
 function quickSwitcherEntries() {
@@ -240,19 +266,19 @@ function moduleCard() {
   const busy = module.operation || module.status === "installing";
   let actions;
   if (!state.settings.enabled) {
-    actions = '<button class="button button-primary button-small" data-action="enable">Enable module</button>';
+    actions = moduleAction("enable", "Enable module", { primary: true });
   } else if (!module.installed) {
-    actions = '<button class="button button-primary button-small" data-action="download" data-confirm="Download the pinned Wisp server package from npm?">Download Wisp</button><button class="button button-small" data-action="disable">Disable</button>';
+    actions = `${moduleAction("download", "Download Wisp", { primary: true, confirm: "Download the pinned Wisp server package from npm?" })}${moduleAction("disable", "Disable")}`;
   } else if (running) {
-    actions = '<button class="button button-small" data-action="stop">Stop</button><button class="button button-small" data-action="restart">Restart</button><button class="button button-small" data-action="disable">Disable</button>';
+    actions = `${moduleAction("stop", "Stop")}${moduleAction("restart", "Restart")}${moduleAction("disable", "Disable")}`;
   } else {
-    actions = '<button class="button button-primary button-small" data-action="start">Start</button><button class="button button-small" data-action="restart">Restart</button><button class="button button-small" data-action="disable">Disable</button>';
+    actions = `${moduleAction("start", "Start", { primary: true })}${moduleAction("restart", "Restart")}${moduleAction("disable", "Disable")}`;
   }
   return `
     <section class="card module-card">
       <div class="module-header">
         <div class="module-title">
-          <div class="module-icon" aria-hidden="true">W</div>
+          <div class="module-icon module-icon-wisp" aria-hidden="true">${icon("modules")}</div>
           <div><h3>Wisp Server</h3><p>Local WebSocket proxy module</p></div>
         </div>
         ${statusBadge(module.status)}
@@ -262,7 +288,7 @@ function moduleCard() {
         <div><div class="detail-label">Listener</div><div class="detail-value">127.0.0.1:${state.settings.port}</div></div>
         <div><div class="detail-label">Module entry point</div><div class="detail-value">modules/wisp/main.js</div></div>
       </div>
-      <div class="module-actions">${actions}<button class="button button-small" data-toggle-module-settings ${running || busy ? "disabled" : ""}>${moduleSettingsOpen ? "Close module settings" : "Module settings"}</button></div>
+      <div class="module-actions">${actions}<button class="button button-small" data-toggle-module-settings ${running || busy ? "disabled" : ""}>${icon("sliders")}${moduleSettingsOpen ? "Close module settings" : "Module settings"}</button></div>
       ${moduleSettingsOpen ? `
         <section class="module-settings">
           <form id="module-settings-form">
@@ -283,22 +309,22 @@ function chatBackendCard() {
   const busy = Boolean(module.operation);
   let actions;
   if (!module.enabled) {
-    actions = '<button class="button button-primary button-small" data-module="chat-backend" data-action="enable">Enable module</button>';
+    actions = moduleAction("enable", "Enable module", { moduleId: "chat-backend", primary: true });
   } else if (!module.installed) {
-    actions = '<button class="button button-primary button-small" data-module="chat-backend" data-action="download">Install Chat backend</button><button class="button button-small" data-module="chat-backend" data-action="disable">Disable</button>';
+    actions = `${moduleAction("download", "Install Chat backend", { moduleId: "chat-backend", primary: true })}${moduleAction("disable", "Disable", { moduleId: "chat-backend" })}`;
   } else if (running) {
-    actions = '<button class="button button-small" data-module="chat-backend" data-action="stop">Stop</button><button class="button button-small" data-module="chat-backend" data-action="restart">Restart</button><button class="button button-small" data-module="chat-backend" data-action="disable">Disable</button>';
+    actions = `${moduleAction("stop", "Stop", { moduleId: "chat-backend" })}${moduleAction("restart", "Restart", { moduleId: "chat-backend" })}${moduleAction("disable", "Disable", { moduleId: "chat-backend" })}`;
   } else {
-    actions = '<button class="button button-primary button-small" data-module="chat-backend" data-action="start">Start</button><button class="button button-small" data-module="chat-backend" data-action="disable">Disable</button>';
+    actions = `${moduleAction("start", "Start", { moduleId: "chat-backend", primary: true })}${moduleAction("disable", "Disable", { moduleId: "chat-backend" })}`;
   }
   return `<section class="card module-card">
-    <div class="module-header"><div class="module-title"><div class="module-icon" aria-hidden="true">C</div><div><h3>Chat backend</h3><p>Private direct and group messaging service</p></div></div>${statusBadge(module.status || "stopped")}</div>
+    <div class="module-header"><div class="module-title"><div class="module-icon module-icon-chat" aria-hidden="true">${icon("chat")}</div><div><h3>Chat backend</h3><p>Private direct and group messaging service</p></div></div>${statusBadge(module.status || "stopped")}</div>
     <div class="module-details">
       <div><div class="detail-label">Backend path</div><div class="detail-value">${escapeHtml(module.path || "/api/chat")}</div></div>
       <div><div class="detail-label">Listener</div><div class="detail-value">127.0.0.1:${Number(module.port) || 8091}</div></div>
       <div><div class="detail-label">Module entry point</div><div class="detail-value">modules/chat-backend/main.js</div></div>
     </div>
-    <div class="module-actions">${actions}<button class="button button-small" data-toggle-chat-module-settings ${running || busy ? "disabled" : ""}>${chatModuleSettingsOpen ? "Close module settings" : "Module settings"}</button></div>
+    <div class="module-actions">${actions}<button class="button button-small" data-toggle-chat-module-settings ${running || busy ? "disabled" : ""}>${icon("sliders")}${chatModuleSettingsOpen ? "Close module settings" : "Module settings"}</button></div>
     ${chatModuleSettingsOpen ? `<section class="module-settings"><form id="chat-module-settings-form">
       <div class="field"><label for="chat-module-path">Backend path</label><input id="chat-module-path" name="path" value="${escapeHtml(module.path || "/api/chat")}" maxlength="160" required><p class="help">The app backend is proxied through Jnet at this path.</p></div>
       <div class="field"><label for="chat-module-port">Listener port</label><input id="chat-module-port" name="port" type="number" min="1024" max="65535" value="${Number(module.port) || 8091}" required><p class="help">The module binds to loopback only.</p></div>
@@ -313,9 +339,11 @@ function chatBackendCard() {
 function managedModuleCard(moduleId, title, description, entry, module) {
   const enabled = module?.enabled === true;
   const action = enabled ? "disable" : "enable";
-  return `<section class="card module-card"><div class="module-header"><div class="module-title"><div class="module-icon" aria-hidden="true">${escapeHtml(title[0])}</div><div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p></div></div>${statusBadge(module?.status || "disabled")}</div>
+  const moduleIcon = moduleId === "storage-backend" ? "storage" : "connect";
+  const actionButton = moduleAction(action, `${enabled ? "Disable" : "Enable"} module`, { moduleId, primary: !enabled });
+  return `<section class="card module-card"><div class="module-header"><div class="module-title"><div class="module-icon module-icon-${escapeHtml(moduleId)}" aria-hidden="true">${icon(moduleIcon)}</div><div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(description)}</p></div></div>${statusBadge(module?.status || "disabled")}</div>
     <div class="module-details"><div><div class="detail-label">Module entry point</div><div class="detail-value">${escapeHtml(entry)}</div></div>${moduleId === "connect" ? `<div><div class="detail-label">Public API</div><div class="detail-value">${module.apiEnabled ? "Enabled" : "Disabled"}</div></div>` : ""}</div>
-    <div class="module-actions"><button class="button ${enabled ? "" : "button-primary"} button-small" data-module="${escapeHtml(moduleId)}" data-action="${action}">${enabled ? "Disable" : "Enable"} module</button></div>
+    <div class="module-actions">${actionButton}</div>
   </section>`;
 }
 
@@ -420,18 +448,18 @@ function storageAppPage() {
     return !item.path.slice(prefix.length).includes("/");
   });
   const files = items.map((item) => `<div class="storage-row">
-    <button class="storage-item" data-storage-open="${escapeHtml(item.path)}">${item.type === "folder" ? "📁" : "📄"} <span>${escapeHtml(item.path.slice(prefix.length))}</span></button>
-    ${item.type === "file" ? `<a class="button button-small" href="/api/storage/download?path=${encodeURIComponent(item.path)}">Download</a>` : ""}
-    <button class="button button-small button-danger" data-storage-delete="${escapeHtml(item.path)}">Delete</button>
+    <button class="storage-item" data-storage-open="${escapeHtml(item.path)}"><span class="storage-item-icon ${item.type === "folder" ? "is-folder" : ""}">${icon(item.type === "folder" ? "folder" : "file")}</span><span>${escapeHtml(item.path.slice(prefix.length))}</span></button>
+    ${item.type === "file" ? `<a class="button button-small storage-action" href="/api/storage/download?path=${encodeURIComponent(item.path)}" aria-label="Download ${escapeHtml(item.path)}" title="Download">${icon("download")}</a>` : ""}
+    <button class="button button-small button-danger storage-action" data-storage-delete="${escapeHtml(item.path)}" aria-label="Delete ${escapeHtml(item.path)}" title="Delete">${icon("trash")}</button>
   </div>`).join("");
   const selectedIsHtml = /\.html?$/i.test(storageData.selected);
   const previewHtml = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; connect-src 'none'; form-action 'none'; base-uri 'none'; object-src 'none'">${storageData.content}`;
   return `<div class="page-heading"><div><h1>Storage</h1><p>Your private files and documents. HTML previews do not execute scripts.</p></div></div>
     <div class="storage-layout">
       <section class="card storage-browser"><div class="storage-toolbar"><strong>${storageData.folder ? escapeHtml(storageData.folder) : "My files"}</strong><button class="button button-small" id="storage-up" ${storageData.folder ? "" : "disabled"}>Up</button></div>
-        <form id="storage-upload-form" class="inline-upload"><label class="button button-small">Upload<input name="file" type="file" hidden required></label><button class="button button-small" type="submit">Upload file</button></form>
-        <form id="storage-folder-form"><div class="field"><label>New folder</label><input name="name" required maxlength="80"></div><button class="button button-small" type="submit">Create folder</button></form>
-        <form id="storage-new-file-form"><div class="field"><label>New document</label><input name="name" placeholder="notes.md" required maxlength="120"></div><button class="button button-small" type="submit">Create file</button></form>
+        <form id="storage-upload-form" class="inline-upload"><label class="button button-small storage-upload-label">${icon("upload")} Add files<input name="file" type="file" hidden required></label><button class="button button-small" type="submit">Upload</button></form>
+        <form id="storage-folder-form"><div class="field"><label>New folder</label><input name="name" required maxlength="80"></div><button class="button button-small" type="submit">${icon("plus")} Create folder</button></form>
+        <form id="storage-new-file-form"><div class="field"><label>New document</label><input name="name" placeholder="notes.md" required maxlength="120"></div><button class="button button-small" type="submit">${icon("plus")} Create file</button></form>
         <div class="storage-list">${files || '<p class="subtle">This folder is empty.</p>'}</div>
       </section>
       <section class="card storage-editor"><div class="storage-toolbar"><strong>${escapeHtml(storageData.selected || "Select a file")}</strong><div class="button-row"><button class="button button-small" id="storage-rename" ${storageData.selected ? "" : "disabled"}>Rename</button><button class="button button-primary button-small" id="storage-save" ${storageData.selected ? "" : "disabled"}>Save</button></div></div>
@@ -479,7 +507,7 @@ function appsAdminPage() {
   return `<div class="page-heading"><div><h1>Apps</h1><p>Choose which apps are enabled and shown on the public homepage.</p></div></div>
     <form id="apps-form" class="card app-settings">
       <div class="app-settings-heading"><div><h2>App access</h2><p>Give each app a clear audience. Private apps stay in your admin Launch page.</p></div><span class="settings-count">${state.apps.filter((item) => item.enabled).length} enabled</span></div>
-      ${state.apps.map((item) => `<div class="app-setting-row" data-app="${escapeHtml(item.id)}"><div class="app-setting-identity"><span class="app-setting-icon">${icon(item.id === "browser" || item.id === "wisp-browser" ? "domains" : item.id === "chat" ? "users" : item.id === "storage" || item.id === "connect" ? item.id : "apps")}</span><div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)}</p></div></div><label class="setting-switch"><span>Enabled</span><input type="checkbox" name="${escapeHtml(item.id)}-enabled" ${item.enabled ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label><label class="setting-switch"><span>Public</span><input type="checkbox" name="${escapeHtml(item.id)}-public" ${item.public ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></div>`).join("")}
+      ${state.apps.map((item) => `<div class="app-setting-row" data-app="${escapeHtml(item.id)}"><div class="app-setting-identity"><span class="app-setting-icon">${icon(appIconName(item.id))}</span><div><strong>${escapeHtml(item.name)}</strong><p>${escapeHtml(item.description)}</p></div></div><label class="setting-switch"><span>Enabled</span><input type="checkbox" name="${escapeHtml(item.id)}-enabled" ${item.enabled ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label><label class="setting-switch"><span>Public</span><input type="checkbox" name="${escapeHtml(item.id)}-public" ${item.public ? "checked" : ""}><span class="switch-track" aria-hidden="true"></span></label></div>`).join("")}
       <section class="app-route-settings">
         <div><h3>Chat app location</h3><p class="help">Choose where users open Chat. Configure the backend path separately in Modules.</p></div>
         <div class="app-route-fields">
@@ -533,13 +561,13 @@ function siteEditorPage() {
   const previewPath = siteEditorData.selected || "index.html";
   return `<div class="page-heading"><div><h1>${escapeHtml(siteEditorData.site.title)}</h1><p>${escapeHtml(siteEditorData.site.domain)} · editor</p></div><a class="button button-small" href="/site/${encodeURIComponent(siteEditorData.site.id)}/index.html" target="_blank" rel="noopener noreferrer">Open site</a></div>
     <div class="site-editor-layout">
-      <section class="card site-editor-files"><h3>Files</h3>${editableFiles.map((file) => `<button class="site-file ${file.path === siteEditorData.selected ? "active" : ""}" data-site-file="${escapeHtml(file.path)}">${escapeHtml(file.path)}</button>`).join("")}
-        <form id="site-new-file-form"><div class="field"><label>New text file</label><input name="path" placeholder="assets/styles.css" required maxlength="240"></div><button class="button button-small" type="submit">Create file</button></form>
+      <section class="card site-editor-files"><h3><span>${icon("folder")} Files</span><small>${editableFiles.length}</small></h3>${editableFiles.map((file) => `<button class="site-file ${file.path === siteEditorData.selected ? "active" : ""}" data-site-file="${escapeHtml(file.path)}"><span class="site-file-icon">${icon(/\.(html?|svg)$/i.test(file.path) ? "code" : "file")}</span><span>${escapeHtml(file.path)}</span></button>`).join("")}
+        <form id="site-new-file-form"><div class="field"><label>New text file</label><input name="path" placeholder="assets/styles.css" required maxlength="240"></div><button class="button button-small" type="submit">${icon("plus")} Create file</button></form>
       </section>
-      <section class="card site-editor-code"><div class="site-editor-toolbar"><strong>${escapeHtml(siteEditorData.selected || "Select a file")}</strong><button class="button button-primary button-small" id="save-site-file" ${siteEditorData.selected ? "" : "disabled"}>Save changes</button></div>
+      <section class="card site-editor-code"><div class="site-editor-toolbar"><strong><span class="editor-file-icon">${icon("code")}</span>${escapeHtml(siteEditorData.selected || "Select a file")}</strong><button class="button button-primary button-small" id="save-site-file" ${siteEditorData.selected ? "" : "disabled"}>${icon("save")} Save changes</button></div>
         <div class="code-editor-shell"><pre id="site-code-highlight" aria-hidden="true"><code></code></pre><textarea id="site-file-content" class="code-editor" aria-label="Site file contents" spellcheck="false">${escapeHtml(siteEditorData.content)}</textarea></div>
         <p class="help">UTF-8 text editor · maximum 2 MB per file. Script execution is disabled in hosted pages.</p></section>
-      <section class="card site-editor-preview"><div class="site-editor-toolbar"><strong>Live preview</strong><button class="button button-small" id="reload-site-preview">Refresh</button></div><iframe title="Sandboxed site preview" sandbox src="/site/${encodeURIComponent(siteEditorData.site.id)}/${previewPath.split("/").map(encodeURIComponent).join("/")}?preview=${Date.now()}"></iframe></section>
+      <section class="card site-editor-preview"><div class="site-editor-toolbar"><strong><span class="preview-live-dot"></span>Live preview</strong><button class="button button-small" id="reload-site-preview">${icon("refresh")} Refresh</button></div><iframe title="Sandboxed site preview" sandbox src="/site/${encodeURIComponent(siteEditorData.site.id)}/${previewPath.split("/").map(encodeURIComponent).join("/")}?preview=${Date.now()}"></iframe></section>
     </div>`;
 }
 

@@ -2,6 +2,24 @@ const MAX_TABS = 12;
 const MAX_BOOKMARKS = 100;
 const MAX_HISTORY = 40;
 const MAX_URL_LENGTH = 2048;
+const browserIcons = {
+  browser: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"/>',
+  scramjet: '<path d="m13 2-3 9h7L9 22l2-9H5l8-11Z"/>',
+  plus: '<path d="M12 5v14m-7-7h14"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>',
+  moon: '<path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/>',
+  back: '<path d="m15 18-6-6 6-6"/>',
+  forward: '<path d="m9 18 6-6-6-6"/>',
+  refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.6 9a7 7 0 0 1 11.6-2L20 12M4 12l2.8 5a7 7 0 0 0 11.6-2"/>',
+  bookmark: '<path d="M6 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18l-6-4-6 4Z"/>',
+  external: '<path d="M14 4h6v6m-11 5L20 4"/><path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5"/>',
+  close: '<path d="m18 6-12 12M6 6l12 12"/>',
+  lock: '<rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 1 1 8 0v3m-4 5v2"/>',
+};
+
+function browserIcon(name) {
+  return `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${browserIcons[name]}</svg>`;
+}
 
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({
@@ -166,24 +184,24 @@ export function mountBrowserApp(root, {
 
   root.innerHTML = `<section class="standalone-browser ${isWisp ? "wisp-browser" : "web-browser"}">
     <header class="browser-app-header">
-      <div class="browser-brand"><span class="browser-brand-mark">${isWisp ? "SJ" : "B"}</span><span>${isWisp ? "Scramjet Browser" : "Browser"}</span></div>
+      <div class="browser-brand"><span class="browser-brand-mark">${browserIcon(isWisp ? "scramjet" : "browser")}</span><span>${isWisp ? "Scramjet Browser" : "Browser"}</span></div>
       <div class="browser-tabs" id="browser-tabs" role="tablist" aria-label="Browser tabs"></div>
-      <button class="browser-control" type="button" data-browser-action="new-tab" aria-label="New tab" title="New tab">+</button>
-      <button class="browser-control browser-theme-toggle" type="button" data-browser-action="toggle-theme" aria-label="Switch theme" title="Switch theme">◐</button>
+      <button class="browser-control" type="button" data-browser-action="new-tab" aria-label="New tab" title="New tab">${browserIcon("plus")}</button>
+      <button class="browser-control browser-theme-toggle" type="button" data-browser-action="toggle-theme" aria-label="Switch theme" title="Switch theme">${browserIcon("moon")}</button>
     </header>
     <form class="browser-toolbar" id="browser-nav-form">
-      <button class="browser-control" type="button" data-browser-action="back" aria-label="Back" title="Back">‹</button>
-      <button class="browser-control" type="button" data-browser-action="forward" aria-label="Forward" title="Forward">›</button>
-      <button class="browser-control" type="button" data-browser-action="reload" aria-label="Reload" title="Reload">↻</button>
+      <button class="browser-control" type="button" data-browser-action="back" aria-label="Back" title="Back">${browserIcon("back")}</button>
+      <button class="browser-control" type="button" data-browser-action="forward" aria-label="Forward" title="Forward">${browserIcon("forward")}</button>
+      <button class="browser-control" type="button" data-browser-action="reload" aria-label="Reload" title="Reload">${browserIcon("refresh")}</button>
       <label class="sr-only" for="browser-address-input">Website address</label>
-      <input id="browser-address-input" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" placeholder="https://example.com" required>
-      <button class="browser-control browser-bookmark-toggle" type="button" data-browser-action="bookmark" aria-label="Bookmark page" title="Bookmark page">★</button>
+      <span class="browser-address-icon">${browserIcon(isWisp ? "lock" : "browser")}</span><input id="browser-address-input" name="url" type="text" inputmode="url" autocomplete="url" spellcheck="false" placeholder="Enter a public website address" required>
+      <button class="browser-control browser-bookmark-toggle" type="button" data-browser-action="bookmark" aria-label="Bookmark page" title="Bookmark page">${browserIcon("bookmark")}</button>
       <button class="button button-primary browser-go" type="submit">Go</button>
-      <button class="browser-control" type="button" data-browser-action="open-external" title="Open in a new browser tab" aria-label="Open in a new browser tab">↗</button>
+      <button class="browser-control" type="button" data-browser-action="open-external" title="Open in a new browser tab" aria-label="Open in a new browser tab">${browserIcon("external")}</button>
     </form>
     <nav class="browser-bookmarks" id="browser-bookmarks" aria-label="Bookmarks"></nav>
     <main class="browser-stage" id="browser-stage">
-      <section class="browser-start" id="browser-start"><div class="browser-start-mark">${isWisp ? "SJ" : "B"}</div><h1>${isWisp ? "Scramjet Browser" : "Browser"}</h1><p>Enter a public website address or choose a bookmark.</p>${isWisp ? `<div class="wisp-start-status"><p class="wisp-status" data-wisp-status><span class="status-pip ${wispStatus === "running" ? "online" : ""}"></span><span class="wisp-status-label">Wisp module ${escapeHtml(wispStatus)}</span></p><p class="wisp-start-help">${wispStatus === "running" ? "Proxy transport is ready." : "Start Wisp in Jnet Modules before browsing."}</p></div>` : ""}</section>
+      <section class="browser-start" id="browser-start"><div class="browser-start-mark">${browserIcon(isWisp ? "scramjet" : "browser")}</div><p class="browser-start-eyebrow">${isWisp ? "PRIVATE BROWSING" : "YOUR WEB, YOUR WAY"}</p><h1>${isWisp ? "Where to next?" : "The web, within reach."}</h1><p>Enter a public website or choose a bookmark to get started.</p>${isWisp ? `<div class="wisp-start-status"><p class="wisp-status" data-wisp-status><span class="status-pip ${wispStatus === "running" ? "online" : ""}"></span><span class="wisp-status-label">Wisp module ${escapeHtml(wispStatus)}</span></p><p class="wisp-start-help">${wispStatus === "running" ? "Private proxy transport is ready." : "Start Wisp in Jnet Modules before browsing."}</p></div>` : ""}</section>
     </main>
     <footer class="browser-footer"><span id="browser-status" ${isWisp ? 'data-wisp-status' : ""}></span><button type="button" data-browser-action="toggle-bookmarks">Hide bookmarks</button></footer>
   </section>`;
@@ -203,8 +221,8 @@ export function mountBrowserApp(root, {
 
     tabsNode.innerHTML = data.tabs.map((tab) => {
       const tabUrl = currentUrl(tab);
-      const title = tabUrl ? new URL(tabUrl).hostname : "New tab";
-      return `<div class="browser-tab ${tab.id === current.id ? "active" : ""}"><button type="button" role="tab" aria-selected="${tab.id === current.id}" data-browser-tab="${escapeHtml(tab.id)}">${escapeHtml(title)}</button><button type="button" aria-label="Close ${escapeHtml(title)} tab" data-close-browser-tab="${escapeHtml(tab.id)}">×</button></div>`;
+        const title = tabUrl ? new URL(tabUrl).hostname : "New tab";
+        return `<div class="browser-tab ${tab.id === current.id ? "active" : ""}"><button type="button" role="tab" aria-selected="${tab.id === current.id}" data-browser-tab="${escapeHtml(tab.id)}">${escapeHtml(title)}</button><button type="button" aria-label="Close ${escapeHtml(title)} tab" data-close-browser-tab="${escapeHtml(tab.id)}">${browserIcon("close")}</button></div>`;
     }).join("");
     bookmarksNode.innerHTML = data.bookmarks.length
       ? data.bookmarks.map((item, index) => `<span class="browser-bookmark"><button type="button" data-open-bookmark="${index}" title="${escapeHtml(item.url)}">${escapeHtml(item.title)}</button><button type="button" data-remove-bookmark="${index}" aria-label="Remove ${escapeHtml(item.title)} bookmark">×</button></span>`).join("")
@@ -217,7 +235,7 @@ export function mountBrowserApp(root, {
     bookmarkButton.classList.toggle("saved", Boolean(url && data.bookmarks.some((item) => item.url === url)));
     const themeButton = root.querySelector(".browser-theme-toggle");
     const isDark = document.documentElement.dataset.theme === "dark";
-    themeButton.textContent = isDark ? "☀" : "◐";
+    themeButton.innerHTML = browserIcon(isDark ? "sun" : "moon");
     themeButton.setAttribute("aria-label", `Switch to ${isDark ? "light" : "dark"} theme`);
     themeButton.title = `Switch to ${isDark ? "light" : "dark"} theme`;
     root.querySelector(".browser-footer > button").textContent = showBookmarks ? "Hide bookmarks" : "Show bookmarks";
